@@ -1,0 +1,307 @@
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtCore import *
+import speech_recognition as sr
+import webbrowser as wb
+import pywhatkit
+import pyautogui
+import time
+import wikipedia
+from win32com.client import Dispatch
+
+class SettingsWindow(QMainWindow):
+    language_choice = 0
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings")
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+
+        layout = QVBoxLayout()
+        self.button_back = QPushButton("Back to Main Window")
+        self.button_back.clicked.connect(self.show_main_window)
+        layout.addWidget(self.button_back)
+
+        self.english = QPushButton("English")
+        self.english.clicked.connect(self.english_button)
+        layout.addWidget(self.english)
+        self.german = QPushButton("German")
+        self.german.clicked.connect(self.german_button)
+        layout.addWidget(self.german)
+
+        self.central_widget.setLayout(layout)
+    
+    def show_main_window(self):
+        self.parent().show_main_window()
+    
+    def english_button(self):
+        SettingsWindow.language_choice = 0
+
+    def german_button(self):
+        SettingsWindow.language_choice = 1
+
+class VoiceAssistant(QObject):
+    #Converts local string into global string
+    response_available = pyqtSignal(str)
+    message_available = pyqtSignal(str)
+    languages = ['en-GB', 'de-DE']
+    
+    
+    #Create an instance of the SpVoice object
+    speak = Dispatch("SAPI.SpVoice")
+
+    def __init__(self):
+        super().__init__()
+
+    def listening(self):
+        
+        #Initialize the recognizer
+        r = sr.Recognizer()
+        wake_word_detected = False
+        while True:
+            while True:
+                if not wake_word_detected:
+                    with sr.Microphone() as source:
+                        try:
+                            wake = r.listen(source)
+                            wake_text = r.recognize_google(wake)
+                            if wake_text == "hey wake":
+                                wake_word_detected = True
+                                message = wake_text
+                                self.message_available.emit(message)
+                        except sr.UnknownValueError:
+                            response = "..."
+                            self.response_available.emit(response)
+                        except sr.RequestError as e:
+                            response = "Could not request results from Google Speech Recognition service; {0}".format(e)
+                            self.response_available.emit(response)
+                else:
+                    #Get the list of available voices
+                    voices = VoiceAssistant.speak.GetVoices()
+
+                    #Specific voice according to the language_choice variable given in the settings window shown before.
+                    desired_voice = voices.Item(SettingsWindow.language_choice)
+                    #Set the desired voice for speech
+                    VoiceAssistant.speak.Voice = desired_voice
+                    # open the microphone and start recording
+                    with sr.Microphone() as source:
+                        if SettingsWindow.language_choice == 0:                           
+                            response = "How can I help you?"  
+                            self.response_available.emit(response)
+                        if SettingsWindow.language_choice == 1:
+                            response = "Wie kann ich ihnen helfen?"
+                            self.response_available.emit(response)
+                        audio = r.listen(source)
+                    try:
+                        text = r.recognize_google(audio, language=VoiceAssistant.languages[SettingsWindow.language_choice])
+                        self.message_available.emit(text)
+                        if "hello" in text:
+                            response = "Hello sir."
+                            self.response_available.emit(response)
+                            wake_word_detected = False
+                        if "Hallo" in text:
+                            response = "Hallo."
+                            self.response_available.emit(response)
+                            wake_word_detected = False
+                        if 'Wikipedia' in text:
+                            if SettingsWindow.language_choice == 0:
+                                wikipedia.set_lang("en")
+                                response = 'Searching Wikipedia...'
+                                self.response_available.emit(response)
+                                query = text.replace("Wikipedia", "")
+                                results = wikipedia.summary(query, sentences = 3)
+                                response = "According to Wikipedia"
+                                self.response_available.emit(response)
+                                response = results
+                                self.response_available.emit(response)
+                                wake_word_detected = False
+                            if SettingsWindow.language_choice == 1:
+                                wikipedia.set_lang("de")
+                                response = 'Suche in Wikipedia...'
+                                self.response_available.emit(response)
+                                query = text.strip("wikipedia")
+                                results = wikipedia.summary(text, sentences = 3)
+                                response = "Laut Wikipedia"
+                                self.response_available.emit(response)
+                                response = results
+                                self.response_available.emit(response)
+                                wake_word_detected = False
+                        if "open" in text:
+                            if "Google" in text:
+                                response = "Opening Google..."
+                                self.response_available.emit(response)
+                                url = 'www.google.com'
+                                try:
+                                    wb.get().open_new(url)
+                                except sr.UnknownValueError:
+                                    response = "Google Speech Recognition could not understand audio"
+                                    self.response_available.emit(response)
+                                except sr.RequestError as e:
+                                    response = "Could not request results from Google Speech Recognition service; {0}".format(e)
+                                    self.response_available.emit(response)
+                                wake_word_detected = False
+                            elif "youtube" in text.lower():
+                                try:
+                                    with sr.Microphone() as source:
+                                        response = "What do you want to search for on YouTube?"
+                                        self.response_available.emit(response)
+                                        audioyt = r.listen(source)
+                                        query = r.recognize_google(audioyt)
+                                        message = query
+                                        self.message_available.emit(message)
+                                        pywhatkit.playonyt(query)
+                                        #Average waiting time for browser loading with "normal" internet
+                                        time.sleep(3)
+                                        pyautogui.press('k')
+                                except sr.UnknownValueError:
+                                    response = "Google Speech Recognition could not understand audio"
+                                    self.response_available.emit(response)
+                                except sr.RequestError as e:
+                                    response = "Could not request results from Google Speech Recognition service; {0}".format(e)
+                                    self.response_available.emit(response)
+                                wake_word_detected = False
+                            else:
+                                app_name = text.lower().split("open ")[1]
+                                response = app_name
+                                self.response_available.emit(response)
+                                pyautogui.press("win")
+                                pyautogui.typewrite("cmd")
+                                pyautogui.press("enter")
+                                time.sleep(2)
+                                pyautogui.typewrite("start "+app_name+".exe")
+                                pyautogui.press("enter")
+                                wake_word_detected = False
+                        if "öffne" in text:
+                            if "google" in text:
+                                response = "Google wird geöffnet..."
+                                self.response_available.emit(response)
+                                url = 'www.google.com'
+                                try:
+                                    wb.get().open_new(url)
+                                except sr.UnknownValueError:
+                                    response = "Google Speech Recognition could not understand audio"
+                                    self.response_available.emit(response)
+                                except sr.RequestError as e:
+                                    response = "Could not request results from Google Speech Recognition service; {0}".format(e)
+                                    self.response_available.emit(response)
+                                wake_word_detected = False
+                            elif "youtube" in text.lower():
+                                try:
+                                    with sr.Microphone() as source:
+                                        response = "Was wollen sie auf Youtube suchen?"
+                                        self.response_available.emit(response)
+                                        audioyt = r.listen(source)
+                                        query = r.recognize_google(audioyt)
+                                        message = query
+                                        self.message_available.emit(message)
+                                        pywhatkit.playonyt(query)
+                                        #Average waiting time for browser loading with "normal" internet
+                                        time.sleep(3)
+                                        pyautogui.press('k')
+                                except sr.UnknownValueError:
+                                    response = "Google Speech Recognition could not understand audio"
+                                    self.response_available.emit(response)
+                                except sr.RequestError as e:
+                                    response = "Could not request results from Google Speech Recognition service; {0}".format(e)
+                                    self.response_available.emit(response)
+                                wake_word_detected = False
+                            else:
+                                app_name = text.lower().split("öffne ")[1]
+                                response = app_name
+                                self.response_available.emit(response)
+                                pyautogui.press("win")
+                                pyautogui.typewrite("cmd")
+                                pyautogui.press("enter")
+                                time.sleep(2)
+                                pyautogui.typewrite("start "+app_name+".exe")
+                                pyautogui.press("enter")
+                                wake_word_detected = False
+                        if "what is" in text:
+                            request = text.strip("what is")
+                            response = str(eval(request))
+                            self.response_available.emit(response)
+                        if "was ist" in text:
+                            request = text.strip("was ist")
+                            response = str(eval(request))
+                            self.response_available.emit(response)
+                        else:
+                            wake_word_detected = False
+                            break
+                    except sr.UnknownValueError:
+                        response = "Google Speech Recognition could not understand audio"
+                        self.response_available.emit(response)
+                    except sr.RequestError as e:
+                        response = "Could not request results from Google Speech Recognition service; {0}".format(e)
+                        self.response_available.emit(response)
+
+class ListeningThread(QThread):
+    def __init__(self, voice_assistant):
+        super().__init__()
+        #Stores the voice input as a string
+        self.voice_assistant = voice_assistant
+
+    def run(self):
+        #Starts the listening process inbetween the different classes. Otherwise it would result in a crash of the programm since it would end in an endless loop
+        self.voice_assistant.listening()
+
+class MainWindow(QWidget):
+
+    language_selection = pyqtSignal(int) 
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        #Setting the title of the window
+        self.setWindowTitle("Wake")
+
+        #Creates the Layout for the window
+        self.setLayout(QVBoxLayout())
+
+        #Calling all the different UI and Voice Assistant methods/classes
+        self.UI_Widgets()
+        self.voice_assistant = VoiceAssistant()
+        self.voice_assistant.response_available.connect(self.handle_response)
+        self.voice_assistant.message_available.connect(self.display_message)
+        
+        self.listening_thread = ListeningThread(self.voice_assistant)
+        self.listening_thread.start()
+
+        self.show()
+    
+    def UI_Widgets(self):
+        #Label for Chat
+        self.chat_label = QLabel("Chat history:")
+        self.layout().addWidget(self.chat_label)
+        #Creates the chat history
+        self.chat_history = QTextEdit()
+        self.chat_history.setReadOnly(True)
+        self.layout().addWidget(self.chat_history)
+        #Creates settings button
+        self.settings_button = QPushButton("Settings", self)
+        self.settings_button.clicked.connect(self.show_settings)
+        self.layout().addWidget(self.settings_button)
+
+    def show_settings(self):
+        self.hide()
+        self.settings_window = SettingsWindow(self)
+        self.settings_window.show()
+
+    def show_main_window(self):
+        self.settings_window.close()
+        self.show()
+
+    def handle_response(self, response):
+        #Speaks everything that is also displayed in the Chat history by the Voice Assistant
+        VoiceAssistant.speak.Speak(response)
+        #Display voice assistant's response in the chatbox
+        self.display_message("Voice Assistant: " + response)
+        
+    def display_message(self, message):
+        #Append the message to the chat history
+        self.chat_history.append(message)
+
+
+
+app = QApplication([])
+mw = MainWindow()
+app.exec_()
