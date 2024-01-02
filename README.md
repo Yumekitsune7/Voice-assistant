@@ -6,7 +6,7 @@ For this to work one has to have voices installed onto the device. Normally, voi
 However, the voices used for this voice assistant are Hedda(German) and Hazel(British English) which can be downloaded from the following link:
 https://www.microsoft.com/en-us/download/details.aspx?id=27224
 
-Also for these new voices to work one also has to install the Microsoft Speech Platform from the following link:
+Also for these new voices to work one also has to install the Microsoft Speech Platform from the following link:<br>
 https://www.microsoft.com/en-us/download/details.aspx?id=27225
 
 The installed voices have an index which are required for the voice assistant to work. 
