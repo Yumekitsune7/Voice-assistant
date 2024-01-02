@@ -12,4 +12,4 @@ https://www.microsoft.com/en-us/download/details.aspx?id=27225
 The installed voices have an index which are required for the voice assistant to work. <br>
 The "Voices" section contains a code which prints the voices on ones devices in index order which means the first one that is printed has the index 0, the second one 1 and so on.
 
-Then the lines 39 and 42 in the "Voice A
+Then the lines 39 and 42 in the "Voice Assistant" code have to be adapted to the corresponding indexes of ones device.
